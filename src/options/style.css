@@ -1,0 +1,35 @@
+:root {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #0f172a;
+  background: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 24px;
+}
+
+.settings {
+  max-width: 560px;
+}
+
+h1 {
+  margin: 0 0 16px;
+}
+
+.toggle-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 16px;
+}
+
+.saved {
+  margin-top: 12px;
+  color: #0f766e;
+  min-height: 24px;
+}
