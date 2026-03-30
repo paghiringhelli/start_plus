@@ -716,11 +716,35 @@ function renderStackedBarHtml(item, thresholdHours = 0) {
   const safeThresholdHours = Math.max(Number(thresholdHours) || 0, 0)
   const thresholdPct = (safeThresholdHours / total) * 100
   const clampedPct = Math.min(Math.max(thresholdPct, 0), 100)
+
+  const mobilizableStatuses = new Set([
+    'GR_SERV',
+    'DISPO_ALARME',
+    'RESERVE',
+    'PERM_SEULE',
+    'GR_SERV_MANUEL',
+    'PLAN_SPEC_ACTIF',
+  ])
+  const mobilizableHours = item.segments.reduce((sum, segment) => {
+    return mobilizableStatuses.has(String(segment.libelle || '').toUpperCase())
+      ? sum + Math.abs(segment.value)
+      : sum
+  }, 0)
+  const mobilizablePct = (mobilizableHours / total) * 100
+  const clampedMobilizablePct = Math.min(Math.max(mobilizablePct, 0), 100)
+
   const thresholdLegendItem = `
     <div style="display:flex;align-items:center;gap:8px;margin-top:12px;">
       <span style="width:12px;height:12px;flex-shrink:0;background:#dc2626;border-radius:2px;"></span>
       <span style="flex:1;">Heures demandées rapportées à la période</span>
       <strong>${escapeHtml(formatHoursToHm(safeThresholdHours))}</strong>
+    </div>
+  `
+  const mobilizableLegendItem = `
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="width:12px;height:12px;flex-shrink:0;background:#2596be;border-radius:2px;"></span>
+      <span style="flex:1;">Heures mobilisables</span>
+      <strong>${escapeHtml(formatHoursToHm(mobilizableHours))}</strong>
     </div>
   `
 
@@ -731,12 +755,14 @@ function renderStackedBarHtml(item, thresholdHours = 0) {
           ${barSegments}
         </div>
         <div title="Seuil: ${escapeHtml(formatHoursToHm(safeThresholdHours))}" style="position:absolute;top:-8px;bottom:-8px;left:${clampedPct}%;width:2px;background:#dc2626;transform:translateX(-50%);border-radius:2px;pointer-events:none;"></div>
+        <div title="Heures mobilisables: ${escapeHtml(formatHoursToHm(mobilizableHours))}" style="position:absolute;top:-8px;bottom:-8px;left:${clampedMobilizablePct}%;width:2px;background:#2596be;transform:translateX(-50%);border-radius:2px;pointer-events:none;"></div>
       </div>
       <strong style="white-space:nowrap;">${escapeHtml(item.display)}</strong>
     </div>
     <div style="display:grid;gap:6px;font-size:13px;">
       ${legendItems}
       ${thresholdLegendItem}
+      ${mobilizableLegendItem}
     </div>
   `
 }
