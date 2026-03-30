@@ -22,15 +22,15 @@ const baseSvg = (size) => `
 
   <g filter="url(#shadow)">
     <text
-      x="68"
-      y="95"
+      x="64"
+      y="110"
       text-anchor="middle"
-      font-family="OCR A Extended, monospace"
-      font-size="100"
+      font-family="Bauhaus 93"
+      font-size="140"
       font-weight="800"
       letter-spacing="-10"
       fill="#ffffff"
-    >S+</text>
+    >+</text>
   </g>
 </svg>`
 
