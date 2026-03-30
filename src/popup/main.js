@@ -4,7 +4,7 @@ const app = document.querySelector('#app')
 
 app.innerHTML = `
   <section class="panel">
-    <h1>Start Plus</h1>
+    <h1>MyStart+</h1>
     <p>Open the MyStart overlay on the active tab.</p>
     <button id="open-overlay" type="button">Open Overlay</button>
     <p id="status" class="status">Ready.</p>

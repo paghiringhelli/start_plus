@@ -536,7 +536,7 @@ function buildDateRangeSubtitle() {
   }
 
   if (start && end) {
-    console.log('[Start Plus][Threshold Debug][Date Range]', {
+    console.log('[MyStart+][Threshold Debug][Date Range]', {
       dateValues,
       timeValues,
       startDateRaw,
@@ -564,7 +564,7 @@ function buildDateRangeSubtitle() {
   }
 
   if (start || end) {
-    console.log('[Start Plus][Threshold Debug][Partial Range]', {
+    console.log('[MyStart+][Threshold Debug][Partial Range]', {
       dateValues,
       timeValues,
       startDateRaw,
@@ -591,7 +591,7 @@ function buildDateRangeSubtitle() {
     }
   }
 
-  console.log('[Start Plus][Threshold Debug][No Range]', {
+  console.log('[MyStart+][Threshold Debug][No Range]', {
     dateValues,
     timeValues,
     startDateRaw,
@@ -716,7 +716,7 @@ function findBestMatchingDatasetItem(dataset, userDisplayName) {
   )
 
   if (!isStrongMatch) {
-    console.log('[Start Plus][User Match] No reliable match', {
+    console.log('[MyStart+][User Match] No reliable match', {
       userDisplayName,
       bestLabel: bestMatch.item.label,
       score: bestMatch.score,
@@ -727,7 +727,7 @@ function findBestMatchingDatasetItem(dataset, userDisplayName) {
     return null
   }
 
-  console.log('[Start Plus][User Match] Auto-opening user', {
+  console.log('[MyStart+][User Match] Auto-opening user', {
     userDisplayName,
     matchedLabel: bestMatch.item.label,
     score: bestMatch.score,
@@ -846,16 +846,19 @@ function renderStackedBarHtml(item, thresholdHours = 0) {
   const mobilizablePct = (mobilizableHours / total) * 100
   const clampedMobilizablePct = Math.min(Math.max(mobilizablePct, 0), 100)
 
+  const thresholdSectionSeparator = `
+    <div style="height:1px;margin:12px 0 6px;border-radius:999px;background:#e5e7eb;"></div>
+  `
   const thresholdLegendItem = `
-    <div style="display:flex;align-items:center;gap:8px;margin-top:12px;">
-      <span style="width:12px;height:12px;flex-shrink:0;background:#dc2626;border-radius:2px;"></span>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="width:2px;height:12px;flex-shrink:0;background:#dc2626;border-radius:2px;margin-inline:5px;"></span>
       <span style="flex:1;">Heures demandées rapportées à la période</span>
       <strong>${escapeHtml(formatHoursToHm(safeThresholdHours))}</strong>
     </div>
   `
   const mobilizableLegendItem = `
     <div style="display:flex;align-items:center;gap:8px;">
-      <span style="width:12px;height:12px;flex-shrink:0;background:#2596be;border-radius:2px;"></span>
+      <span style="width:2px;height:12px;flex-shrink:0;background:#2596be;border-radius:2px;margin-inline:5px;"></span>
       <span style="flex:1;">Heures mobilisables</span>
       <strong>${escapeHtml(formatHoursToHm(mobilizableHours))}</strong>
     </div>
@@ -874,6 +877,7 @@ function renderStackedBarHtml(item, thresholdHours = 0) {
     </div>
     <div style="display:grid;gap:6px;font-size:13px;">
       ${legendItems}
+      ${thresholdSectionSeparator}
       ${thresholdLegendItem}
       ${mobilizableLegendItem}
     </div>
@@ -890,7 +894,7 @@ function mountOverlay(dataset) {
   const thresholdHours = computeThresholdHours(durationMinutes, periodYear)
   const matchedItem = findBestMatchingDatasetItem(dataset, currentUserDisplayName)
 
-  console.log('[Start Plus][Threshold Debug][Equation]', {
+  console.log('[MyStart+][Threshold Debug][Equation]', {
     yearlyTargetHours: YEARLY_TARGET_HOURS,
     durationMinutes,
     durationHours,
@@ -913,7 +917,7 @@ function mountOverlay(dataset) {
   panel.innerHTML = `
     <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:14px;">
       <div>
-        <h2 style="margin:0 0 4px;font-size:20px;">Start Plus</h2>
+        <h2 style="margin:0 0 4px;font-size:20px;">MyStart+</h2>
         <p style="margin:0;color:#334155;">${subtitle}</p>
       </div>
       <button id="start-plus-close" type="button" aria-label="Close overlay" style="border:1px solid #e2e8f0;background:#f8fafc;border-radius:8px;width:32px;height:32px;font-size:20px;line-height:1;cursor:pointer;">&times;</button>

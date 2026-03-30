@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Start Plus",
+  "name": "MyStart+",
   "description": "A Vite-powered Chrome extension starter.",
   "version": "0.1.2",
   "icons": {
@@ -10,7 +10,7 @@
     "128": "icons/icon-128.png"
   },
   "action": {
-    "default_title": "Start Plus",
+    "default_title": "MyStart+",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png",
@@ -22,7 +22,7 @@
     "service_worker": "assets/background.js",
     "type": "module"
   },
-  "permissions": ["storage", "activeTab"],
+  "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": ["https://startweb.118-vaud.ch/*"],
   "content_scripts": [
     {

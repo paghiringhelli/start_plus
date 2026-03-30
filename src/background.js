@@ -1,6 +1,19 @@
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('Start Plus installed.')
+  console.log('MyStart+ installed.')
 })
+
+async function requestOverlayOpen(tabId) {
+  return chrome.tabs.sendMessage(tabId, {
+    type: 'START_PLUS_OPEN_OVERLAY',
+  })
+}
+
+async function ensureContentScript(tabId) {
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ['assets/content.js'],
+  })
+}
 
 chrome.action.onClicked.addListener(async (tab) => {
   if (!tab?.id) {
@@ -8,11 +21,14 @@ chrome.action.onClicked.addListener(async (tab) => {
   }
 
   try {
-    await chrome.tabs.sendMessage(tab.id, {
-      type: 'START_PLUS_OPEN_OVERLAY',
-    })
+    await requestOverlayOpen(tab.id)
   } catch (error) {
-    console.warn('Unable to open Start Plus overlay from action click.', error)
+    try {
+      await ensureContentScript(tab.id)
+      await requestOverlayOpen(tab.id)
+    } catch (retryError) {
+      console.warn('Unable to open MyStart+ overlay from action click.', retryError)
+    }
   }
 })
 

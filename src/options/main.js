@@ -6,7 +6,7 @@ const app = document.querySelector('#app')
 
 app.innerHTML = `
   <section class="settings">
-    <h1>Start Plus Settings</h1>
+    <h1>MyStart+ Settings</h1>
     <label class="toggle-row">
       <input id="enabled" type="checkbox" />
       Enable extension behavior on pages
