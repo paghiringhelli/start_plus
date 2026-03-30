@@ -1,6 +1,8 @@
 import planningStatusCsv from '../resources/planning_status.csv?raw'
 
 const OVERLAY_ID = 'start-plus-overlay'
+const ROW_TITLE_SELECTOR = '.table.container-table #colFixed .rowTitle'
+const ROW_TITLE_STYLE_ID = 'start-plus-row-title-style'
 const TARGET_HOST = 'startweb.118-vaud.ch'
 const TARGET_HASH_PATH = '/planning/statistiques'
 const REQUIRED_QUERY = {
@@ -739,58 +741,24 @@ function findBestMatchingDatasetItem(dataset, userDisplayName) {
   return bestMatch.item
 }
 
-function showSearchView(panel, dataset, thresholdHours) {
-  const body = panel.querySelector('#start-plus-body')
-
-  const listItems = dataset
-    .map(
-      (item, i) =>
-        `<button data-index="${i}" type="button" style="text-align:left;width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;cursor:pointer;font:14px/1.4 'Segoe UI',sans-serif;color:#0f172a;">${escapeHtml(item.label)}</button>`,
-    )
-    .join('')
-
-  body.innerHTML = `
-    <div style="margin-bottom:10px;">
-      <input id="start-plus-search" type="text" placeholder="Search person\u2026" autocomplete="off"
-        style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;color:#0f172a;outline:none;" />
-    </div>
-    <div id="start-plus-person-list" style="display:grid;gap:4px;max-height:380px;overflow-y:auto;">${listItems}</div>
-  `
-
-  const searchInput = body.querySelector('#start-plus-search')
-  const list = body.querySelector('#start-plus-person-list')
-
-  searchInput.addEventListener('input', () => {
-    const q = searchInput.value.toLowerCase()
-    for (const btn of list.querySelectorAll('button[data-index]')) {
-      const idx = Number(btn.dataset.index)
-      btn.style.display = dataset[idx].label.toLowerCase().includes(q) ? '' : 'none'
-    }
-  })
-
-  for (const btn of list.querySelectorAll('button[data-index]')) {
-    btn.addEventListener('click', () => {
-      showGraphView(panel, dataset, dataset[Number(btn.dataset.index)], thresholdHours)
-    })
+function findDatasetItemByLabel(dataset, rawLabel) {
+  const normalizedLabel = normalizeNameText(rawLabel)
+  if (!normalizedLabel) {
+    return null
   }
 
-  searchInput.focus()
+  return dataset.find((item) => normalizeNameText(item.label) === normalizedLabel) || null
 }
 
-function showGraphView(panel, dataset, selectedItem, thresholdHours) {
+function showGraphView(panel, selectedItem, thresholdHours) {
   const body = panel.querySelector('#start-plus-body')
 
   body.innerHTML = `
     <div style="margin-bottom:12px;display:flex;align-items:center;gap:10px;">
-      <button id="start-plus-back" type="button" aria-label="Back" style="border:1px solid #e2e8f0;background:#f8fafc;border-radius:8px;width:32px;height:32px;font-size:20px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;"><span style="display:block;transform:translateY(-2px);">&#8249;</span></button>
       <span style="font-weight:600;font-size:15px;">${escapeHtml(selectedItem.label)}</span>
     </div>
     <div>${renderStackedBarHtml(selectedItem, thresholdHours)}</div>
   `
-
-  body.querySelector('#start-plus-back').addEventListener('click', () => {
-    showSearchView(panel, dataset, thresholdHours)
-  })
 }
 
 function renderStackedBarHtml(item, thresholdHours = 0) {
@@ -871,7 +839,7 @@ function renderStackedBarHtml(item, thresholdHours = 0) {
           ${barSegments}
         </div>
         <div title="Seuil: ${escapeHtml(formatHoursToHm(safeThresholdHours))}" style="position:absolute;top:-8px;bottom:-8px;left:${clampedPct}%;width:2px;background:#dc2626;transform:translateX(-50%);border-radius:2px;pointer-events:none;"></div>
-        <div title="Heures mobilisables: ${escapeHtml(formatHoursToHm(mobilizableHours))}" style="position:absolute;top:-8px;bottom:-8px;left:${clampedMobilizablePct}%;width:2px;background:#2596be;transform:translateX(-50%);border-radius:2px;pointer-events:none;"></div>
+        <div title="Heures mobilisables: ${escapeHtml(formatHoursToHm(mobilizableHours))}" style="position:absolute;top:-9px;bottom:-9px;left:${clampedMobilizablePct}%;width:2px;background:#2596be;transform:translateX(-50%);border-radius:2px;pointer-events:none;"></div>
       </div>
       <strong style="white-space:nowrap;">${escapeHtml(item.display)}</strong>
     </div>
@@ -884,7 +852,7 @@ function renderStackedBarHtml(item, thresholdHours = 0) {
   `
 }
 
-function mountOverlay(dataset) {
+function mountOverlay(dataset, preferredLabel = '') {
   removeOverlay()
 
   const { subtitle, durationMinutes, periodYear } = buildDateRangeSubtitle()
@@ -892,6 +860,7 @@ function mountOverlay(dataset) {
   const hoursInYear = getHoursInYear(periodYear)
   const durationHours = Number.isFinite(durationMinutes) ? durationMinutes / 60 : null
   const thresholdHours = computeThresholdHours(durationMinutes, periodYear)
+  const preferredItem = findDatasetItemByLabel(dataset, preferredLabel)
   const matchedItem = findBestMatchingDatasetItem(dataset, currentUserDisplayName)
 
   console.log('[MyStart+][Threshold Debug][Equation]', {
@@ -940,15 +909,11 @@ function mountOverlay(dataset) {
   overlay.appendChild(panel)
   document.body.appendChild(overlay)
 
-  if (matchedItem) {
-    showGraphView(panel, dataset, matchedItem, thresholdHours)
-    return
-  }
-
-  showSearchView(panel, dataset, thresholdHours)
+  const selectedItem = preferredItem || matchedItem || dataset[0]
+  showGraphView(panel, selectedItem, thresholdHours)
 }
 
-async function maybeRenderOverlay({ forceOpen = false } = {}) {
+async function maybeRenderOverlay({ forceOpen = false, preferredLabel = '' } = {}) {
   if (!isTargetPage()) {
     removeOverlay()
     return { status: 'not-target-page' }
@@ -979,9 +944,56 @@ async function maybeRenderOverlay({ forceOpen = false } = {}) {
   }
 
   dismissedByUser = false
-  mountOverlay(dataset)
+  mountOverlay(dataset, preferredLabel)
   return { status: 'opened', itemCount: dataset.length }
 }
+
+async function maybeRenderOverlayFromNameClick(event) {
+  if (!isTargetPage() || isOverlayNode(event.target)) {
+    return
+  }
+
+  const rowTitle = event.target instanceof Element
+    ? event.target.closest(ROW_TITLE_SELECTOR)
+    : null
+  const label = (rowTitle?.textContent || '').trim()
+
+  if (!label) {
+    return
+  }
+
+  await maybeRenderOverlay({ forceOpen: true, preferredLabel: label })
+}
+
+function ensureRowTitleInteractionStyle() {
+  if (document.getElementById(ROW_TITLE_STYLE_ID)) {
+    return
+  }
+
+  const style = document.createElement('style')
+  style.id = ROW_TITLE_STYLE_ID
+  style.textContent = `
+    ${ROW_TITLE_SELECTOR} {
+      cursor: pointer;
+      transition: filter 120ms ease, background-color 120ms ease;
+    }
+
+    ${ROW_TITLE_SELECTOR}:hover {
+      background-color: rgba(15, 23, 42, 0.06);
+      filter: brightness(0.97);
+    }
+  `
+
+  document.head.appendChild(style)
+}
+
+ensureRowTitleInteractionStyle()
+
+document.addEventListener('click', (event) => {
+  maybeRenderOverlayFromNameClick(event).catch((error) => {
+    console.warn('Unable to open MyStart+ overlay from table name click.', error)
+  })
+})
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type !== 'START_PLUS_OPEN_OVERLAY') {
