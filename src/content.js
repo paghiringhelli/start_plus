@@ -6,6 +6,31 @@ const REQUIRED_QUERY = {
   itemId: 'activitePersonnel',
 }
 
+const PLANNING_STATUS = [
+  { code: 0,  libelle: 'VIERGE',          couleur: '#afafaf', bulle_d_aide: 'Vierge',                    priorite_etat: 101 },
+  { code: 1,  libelle: 'GR_SERV',         couleur: '#c8ff00', bulle_d_aide: 'Groupe de service',         priorite_etat: 10  },
+  { code: 2,  libelle: 'RENF_1',          couleur: '#aae1ff', bulle_d_aide: 'Renfort 1',                 priorite_etat: 20  },
+  { code: 3,  libelle: 'RENF_2',          couleur: '#33a8ff', bulle_d_aide: 'Renfort 2',                 priorite_etat: 25  },
+  { code: 7,  libelle: 'ABSENT',          couleur: '#000000', bulle_d_aide: 'Absent',                    priorite_etat: 100 },
+  { code: 9,  libelle: 'RENF_3',          couleur: '#3d79c2', bulle_d_aide: 'Renfort 3',                 priorite_etat: 30  },
+  { code: 10, libelle: 'RENF_4',          couleur: '#475185', bulle_d_aide: 'Renfort 4',                 priorite_etat: 35  },
+  { code: 11, libelle: 'RENF_5',          couleur: '#475185', bulle_d_aide: 'Renfort 5',                 priorite_etat: 40  },
+  { code: 26, libelle: 'DISPO_ALARME',    couleur: '#ffe100', bulle_d_aide: 'Disponible pour alarme',    priorite_etat: 15  },
+  { code: 28, libelle: 'CADRE_ECA',       couleur: '#a851ff', bulle_d_aide: 'Cadre cours ECAFORM',       priorite_etat: 100 },
+  { code: 29, libelle: 'ELEVE_ECA',       couleur: '#cf9fff', bulle_d_aide: 'Élève cours ECAFORM',       priorite_etat: 100 },
+  { code: 30, libelle: 'EXERCICE',        couleur: '#5a3282', bulle_d_aide: 'Cours SDIS',                priorite_etat: 100 },
+  { code: 31, libelle: 'GARDE',           couleur: '#ff96c8', bulle_d_aide: 'Garde',                     priorite_etat: 100 },
+  { code: 32, libelle: 'RESERVE',         couleur: '#ff8000', bulle_d_aide: 'Réserve pour alarme',       priorite_etat: 62  },
+  { code: 35, libelle: 'MAL_ACC',         couleur: '#000000', bulle_d_aide: 'Maladie Accident',          priorite_etat: 100 },
+  { code: 37, libelle: 'PLAN_SPECIALIST', couleur: '#e6e6e6', bulle_d_aide: 'Planning spécialiste',      priorite_etat: 100 },
+  { code: 38, libelle: 'NON_RENSEIGNE',   couleur: '#afafaf', bulle_d_aide: 'Non renseigné',             priorite_etat: 100 },
+  { code: 40, libelle: 'PERM_SEULE',      couleur: '#00ff00', bulle_d_aide: 'Permanence seule',          priorite_etat: 5   },
+  { code: 41, libelle: 'GR_SERV_MANUEL',  couleur: '#008000', bulle_d_aide: 'Groupe de service manuel',  priorite_etat: 9   },
+  { code: 42, libelle: 'INTERVENTIONS',   couleur: '#2596be', bulle_d_aide: 'Interventions',             priorite_etat: 0   },
+  { code: 43, libelle: 'PLAN_SPEC_ACTIF', couleur: '#ff0000', bulle_d_aide: 'Spécialiste actif',         priorite_etat: 100 },
+  { code: 44, libelle: 'OCCUPE',          couleur: '#5b5b5b', bulle_d_aide: 'Occupé',                    priorite_etat: 100 },
+]
+
 const OVERLAY_STYLE = `
   position: fixed;
   inset: 0;
@@ -121,6 +146,10 @@ function extractMyStartStatDataset() {
   let bestRows = []
 
   for (const table of tables) {
+    // Column headers live in #rowFixed .colTitle (sibling of #scrollable).
+    const headerCells = Array.from(table.querySelectorAll('#rowFixed .colTitle'))
+      .map((c) => (c.textContent || '').trim())
+
     const rowLabels = Array.from(table.querySelectorAll('#colFixed .rowTitle')).map((node) =>
       (node.textContent || '').trim(),
     )
@@ -144,17 +173,40 @@ function extractMyStartStatDataset() {
         continue
       }
 
-      const values = dataCells
-        .map((cell) => parseDurationHours(cell.textContent || ''))
-        .filter((value) => value !== null)
+      const segments = []
+      let total = 0
 
-      if (values.length === 0) {
+      dataCells.forEach((cell, cellIndex) => {
+        const value = parseDurationHours(cell.textContent || '')
+        if (value === null || value === 0) {
+          return
+        }
+
+        const headerText = headerCells[cellIndex] || ''
+        const status = PLANNING_STATUS.find(
+          (s) => s.libelle.toLowerCase() === headerText.toLowerCase(),
+        )
+
+        segments.push({
+          libelle: status?.libelle || headerText || `col_${cellIndex}`,
+          couleur: status?.couleur || '#cbd5e1',
+          bulle_d_aide: status?.bulle_d_aide || headerText || `Column ${cellIndex + 1}`,
+          priorite_etat: status?.priorite_etat ?? 999,
+          value,
+          display: formatHoursToHm(value),
+        })
+        total += value
+      })
+
+      if (segments.length === 0) {
         continue
       }
 
-      const total = values.reduce((acc, value) => acc + value, 0)
+      segments.sort((a, b) => a.priorite_etat - b.priorite_etat)
+
       rows.push({
         label,
+        segments,
         value: total,
         display: formatHoursToHm(total),
       })
@@ -372,23 +424,112 @@ function buildDateRangeSubtitle() {
   }
 }
 
-function renderBarsHtml(data) {
-  const maxAbsValue = Math.max(...data.map((item) => Math.abs(item.value)), 1)
-  return data
-    .map((item) => {
-      const width = Math.max((Math.abs(item.value) / maxAbsValue) * 100, 2)
-      const color = item.value < 0 ? 'linear-gradient(90deg,#f97316,#dc2626)' : 'linear-gradient(90deg,#0ea5e9,#2563eb)'
-      return `
-        <div style="display:grid;grid-template-columns:220px 1fr 70px;gap:10px;align-items:center;">
-          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.label}</span>
-          <div style="height:14px;background:#e2e8f0;border-radius:999px;overflow:hidden;">
-            <div style="height:100%;width:${width}%;background:${color};"></div>
-          </div>
-          <strong style="text-align:right;">${item.display ?? item.value}</strong>
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+function showSearchView(panel, dataset) {
+  const body = panel.querySelector('#start-plus-body')
+
+  const listItems = dataset
+    .map(
+      (item, i) =>
+        `<button data-index="${i}" type="button" style="text-align:left;width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;cursor:pointer;font:14px/1.4 'Segoe UI',sans-serif;color:#0f172a;">${escapeHtml(item.label)}</button>`,
+    )
+    .join('')
+
+  body.innerHTML = `
+    <div style="margin-bottom:10px;">
+      <input id="start-plus-search" type="text" placeholder="Search person\u2026" autocomplete="off"
+        style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;color:#0f172a;outline:none;" />
+    </div>
+    <div id="start-plus-person-list" style="display:grid;gap:4px;max-height:380px;overflow-y:auto;">${listItems}</div>
+  `
+
+  const searchInput = body.querySelector('#start-plus-search')
+  const list = body.querySelector('#start-plus-person-list')
+
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.toLowerCase()
+    for (const btn of list.querySelectorAll('button[data-index]')) {
+      const idx = Number(btn.dataset.index)
+      btn.style.display = dataset[idx].label.toLowerCase().includes(q) ? '' : 'none'
+    }
+  })
+
+  for (const btn of list.querySelectorAll('button[data-index]')) {
+    btn.addEventListener('click', () => {
+      showGraphView(panel, dataset, dataset[Number(btn.dataset.index)])
+    })
+  }
+
+  searchInput.focus()
+}
+
+function showGraphView(panel, dataset, selectedItem) {
+  const body = panel.querySelector('#start-plus-body')
+
+  body.innerHTML = `
+    <div style="margin-bottom:12px;display:flex;align-items:center;gap:10px;">
+      <button id="start-plus-back" type="button" aria-label="Back" style="border:1px solid #94a3b8;background:#ffffff;border-radius:8px;width:32px;height:32px;font-size:20px;line-height:1;cursor:pointer;">&#8249;</button>
+      <span style="font-weight:600;font-size:15px;">${escapeHtml(selectedItem.label)}</span>
+    </div>
+    <div>${renderStackedBarHtml(selectedItem)}</div>
+  `
+
+  body.querySelector('#start-plus-back').addEventListener('click', () => {
+    showSearchView(panel, dataset)
+  })
+}
+
+function renderStackedBarHtml(item) {
+  if (!item.segments || item.segments.length === 0) {
+    return `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <div style="flex:1;height:24px;background:#e2e8f0;border-radius:999px;overflow:hidden;">
+          <div style="height:100%;width:100%;background:linear-gradient(90deg,#0ea5e9,#2563eb);"></div>
         </div>
-      `
+        <strong style="white-space:nowrap;">${escapeHtml(item.display)}</strong>
+      </div>
+    `
+  }
+
+  const total = item.segments.reduce((sum, s) => sum + Math.abs(s.value), 0) || 1
+
+  const barSegments = item.segments
+    .map((s) => {
+      const pct = (Math.abs(s.value) / total) * 100
+      return `<div title="${escapeHtml(s.bulle_d_aide)}: ${escapeHtml(s.display)}" style="height:100%;width:${pct}%;background:${s.couleur};flex-shrink:0;"></div>`
     })
     .join('')
+
+  const legendItems = item.segments
+    .map(
+      (s) => `
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="width:12px;height:12px;border-radius:3px;flex-shrink:0;background:${s.couleur};border:1px solid rgba(0,0,0,0.12);"></span>
+          <span style="flex:1;">${escapeHtml(s.bulle_d_aide)}</span>
+          <strong>${escapeHtml(s.display)}</strong>
+        </div>
+      `,
+    )
+    .join('')
+
+  return `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+      <div style="display:flex;flex:1;height:24px;border-radius:999px;overflow:hidden;background:#e2e8f0;">
+        ${barSegments}
+      </div>
+      <strong style="white-space:nowrap;">${escapeHtml(item.display)}</strong>
+    </div>
+    <div style="display:grid;gap:6px;font-size:13px;">
+      ${legendItems}
+    </div>
+  `
 }
 
 function mountOverlay(dataset) {
@@ -413,7 +554,7 @@ function mountOverlay(dataset) {
       </div>
       <button id="start-plus-close" type="button" aria-label="Close overlay" style="border:1px solid #94a3b8;background:#ffffff;border-radius:8px;width:32px;height:32px;font-size:20px;line-height:1;cursor:pointer;">&times;</button>
     </header>
-    <div style="display:grid;gap:8px;">${renderBarsHtml(dataset)}</div>
+    <div id="start-plus-body"></div>
   `
 
   const closeButton = panel.querySelector('#start-plus-close')
@@ -430,6 +571,8 @@ function mountOverlay(dataset) {
 
   overlay.appendChild(panel)
   document.body.appendChild(overlay)
+
+  showSearchView(panel, dataset)
 }
 
 async function maybeRenderOverlay({ forceOpen = false } = {}) {
@@ -455,8 +598,7 @@ async function maybeRenderOverlay({ forceOpen = false } = {}) {
 
   const dataset = findBestDataset()
     .filter((row) => Number.isFinite(row.value))
-    .sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
-    .slice(0, 20)
+    .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }))
 
   if (dataset.length === 0) {
     removeOverlay()

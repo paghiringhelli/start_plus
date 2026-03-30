@@ -1,0 +1,23 @@
+code, bulle_d_aide            , priorite_etat, libelle        , couleur
+   0, Vierge                  ,           100, VIERGE         , #ffffff
+   1, Groupe de service       ,            10, GR_SERV        , #c8ff00
+   2, Renfort 1               ,            20, RENF_1         , #aae1ff
+   3, Renfort 2               ,            25, RENF_2         , #33a8ff
+   7, Absent                  ,           100, ABSENT         , #000000
+   9, Renfort 3               ,            30, RENF_3         , #3d79c2
+  10, Renfort 4               ,            35, RENF_4         , #475185
+  11, Renfort 5               ,            40, RENF_5         , #475185
+  26, Disponible pour alarme  ,            15, DISPO_ALARME   , #ffe100ff
+  28, Cadre cours ECAFORM     ,           100, CADRE_ECA      , #a851ff
+  29, Eléve cours ECAFORM     ,           100, ELEVE_ECA      , #cf9fff
+  30, Cours SDIS              ,           100, EXERCICE       , #5a3282
+  31, Garde                   ,           100, GARDE          , #ff96c8
+  32, Réserve pour alarme     ,            62, RESERVE        , #ff8000
+  35, Maladie Accident        ,           100, MAL_ACC        , #000000
+  37, Planning spécialiste    ,           100, PLAN_SPECIALIST, #e6e6e6
+  38, Non renseigné           ,           100, NON_RENSEIGNE  , #afafaf
+  40, Permanence seule        ,             5, PERM_SEULE     , #00ff00
+  41, Groupe de service manuel,             9, GR_SERV_MANUEL , #008000
+  42, Interventions           ,             0, INTERVENTIONS  , #2596be
+  43, Spécialiste actif       ,           100, PLAN_SPEC_ACTIF, #ff0000
+  44, Occupé                  ,           100, OCCUPE         , #5b5b5b
