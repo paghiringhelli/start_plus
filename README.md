@@ -9,7 +9,7 @@ The content script is scoped to:
 - Host: `https://startweb.118-vaud.ch/*`
 - SPA route: `#/planning/statistiques`
 - Required query params:
-	- `numeroCentre=529`
+	- `numeroCentre` in `528`, `529`, `530`, `531`
 	- `itemId=activitePersonnel`
 
 The overlay is rendered only when:

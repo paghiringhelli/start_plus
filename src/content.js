@@ -1,14 +1,19 @@
 import planningStatusCsv from '../resources/planning_status.csv?raw'
 
 const OVERLAY_ID = 'start-plus-overlay'
+const CENTER_MENU_ID = 'start-plus-center-menu'
 const ROW_TITLE_SELECTOR = '.table.container-table #colFixed .rowTitle'
 const ROW_TITLE_STYLE_ID = 'start-plus-row-title-style'
 const TARGET_HOST = 'startweb.118-vaud.ch'
 const TARGET_HASH_PATH = '/planning/statistiques'
-const REQUIRED_QUERY = {
-  numeroCentre: '529',
-  itemId: 'activitePersonnel',
-}
+const ALLOWED_CENTER_IDS = new Set(['528', '529', '530', '531'])
+const REQUIRED_ITEM_ID = 'activitePersonnel'
+const CENTER_LINKS = [
+  { label: 'Jongny', centerId: '531' },
+  { label: 'Montreux', centerId: '528' },
+  { label: 'St-Légier', centerId: '530' },
+  { label: 'Vevey', centerId: '529' },
+]
 const YEARLY_TARGET_HOURS = Number(
   import.meta.env.YEARLY_TARGET_HOURS ?? import.meta.env.VITE_YEARLY_TARGET_HOURS,
 ) || 1716
@@ -143,9 +148,10 @@ function isTargetPage() {
     return false
   }
 
-  return Object.entries(REQUIRED_QUERY).every(
-    ([key, value]) => route.query.get(key) === value,
-  )
+  const centerId = route.query.get('numeroCentre')
+  const itemId = route.query.get('itemId')
+
+  return ALLOWED_CENTER_IDS.has(centerId) && itemId === REQUIRED_ITEM_ID
 }
 
 async function isEnabled() {
@@ -345,6 +351,110 @@ function removeOverlay() {
   if (existing) {
     existing.remove()
   }
+}
+
+function removeCenterMenu() {
+  const existing = document.getElementById(CENTER_MENU_ID)
+  if (existing) {
+    existing.remove()
+  }
+}
+
+function buildCenterHash(centerId) {
+  const query = new URLSearchParams({
+    numeroCentre: centerId,
+    itemId: REQUIRED_ITEM_ID,
+  })
+
+  return `#${TARGET_HASH_PATH}?${query.toString()}`
+}
+
+function shouldShowCenterMenu() {
+  if (location.hostname !== TARGET_HOST) {
+    return false
+  }
+
+  const route = parseHashRoute()
+  if (!route || route.path !== TARGET_HASH_PATH) {
+    return false
+  }
+
+  const centerId = route.query.get('numeroCentre')
+  const itemId = route.query.get('itemId')
+  return itemId === REQUIRED_ITEM_ID && !ALLOWED_CENTER_IDS.has(centerId)
+}
+
+function mountCenterMenu() {
+  removeCenterMenu()
+
+  const menu = document.createElement('aside')
+  menu.id = CENTER_MENU_ID
+  menu.style.cssText = `
+    position: fixed;
+    right: 14px;
+    bottom: 14px;
+    z-index: 2147483646;
+    width: min(220px, calc(100vw - 28px));
+    border-radius: 10px;
+    border: 1px solid rgba(15, 23, 42, 0.18);
+    background: #ffffff;
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.2);
+    padding: 10px;
+    font: 13px/1.35 'Segoe UI', sans-serif;
+    color: #0f172a;
+  `
+
+  const title = document.createElement('p')
+  title.textContent = 'Choisir un centre'
+  title.style.cssText = 'margin:0 0 8px;font-weight:600;font-size:13px;'
+  menu.appendChild(title)
+
+  const buttonGroup = document.createElement('div')
+  buttonGroup.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:6px;'
+
+  for (const link of CENTER_LINKS) {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.textContent = link.label
+    button.style.cssText = `
+      border: 1px solid #167cbc;
+      border-radius: 8px;
+      background: #167cbc;
+      color: #ffffff;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 7px 8px;
+    `
+    button.addEventListener('click', () => {
+      location.hash = buildCenterHash(link.centerId)
+      removeCenterMenu()
+    })
+    buttonGroup.appendChild(button)
+  }
+
+  menu.appendChild(buttonGroup)
+  document.body.appendChild(menu)
+}
+
+async function maybeRenderCenterMenu() {
+  if (!shouldShowCenterMenu()) {
+    removeCenterMenu()
+    return
+  }
+
+  if (!isLikelyAuthenticated()) {
+    removeCenterMenu()
+    return
+  }
+
+  const enabled = await isEnabled()
+  if (!enabled) {
+    removeCenterMenu()
+    return
+  }
+
+  mountCenterMenu()
 }
 
 function isElementVisible(element) {
@@ -988,6 +1098,26 @@ function ensureRowTitleInteractionStyle() {
 }
 
 ensureRowTitleInteractionStyle()
+
+maybeRenderCenterMenu().catch((error) => {
+  console.warn('Unable to render center switch menu.', error)
+})
+
+window.addEventListener('hashchange', () => {
+  maybeRenderCenterMenu().catch((error) => {
+    console.warn('Unable to refresh center switch menu after route change.', error)
+  })
+})
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== 'sync' || !Object.hasOwn(changes, 'start_plus_enabled')) {
+    return
+  }
+
+  maybeRenderCenterMenu().catch((error) => {
+    console.warn('Unable to refresh center switch menu after settings change.', error)
+  })
+})
 
 document.addEventListener('click', (event) => {
   maybeRenderOverlayFromNameClick(event).catch((error) => {
