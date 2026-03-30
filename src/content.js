@@ -232,6 +232,146 @@ function removeOverlay() {
   }
 }
 
+function isElementVisible(element) {
+  if (!(element instanceof HTMLElement)) {
+    return false
+  }
+
+  const style = window.getComputedStyle(element)
+  if (style.display === 'none' || style.visibility === 'hidden') {
+    return false
+  }
+
+  return element.getClientRects().length > 0
+}
+
+function getInputValues(selector) {
+  return Array.from(document.querySelectorAll(selector))
+    .filter((input) => input instanceof HTMLInputElement)
+    .sort((a, b) => {
+      const aVisible = isElementVisible(a)
+      const bVisible = isElementVisible(b)
+      if (aVisible === bVisible) {
+        return 0
+      }
+      return aVisible ? -1 : 1
+    })
+    .map((input) => input.value.trim())
+    .filter(Boolean)
+}
+
+function normalizeTimeDisplay(rawTime) {
+  const match = rawTime.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/)
+  if (!match) {
+    return rawTime
+  }
+
+  return `${match[1].padStart(2, '0')}:${match[2]}`
+}
+
+function normalizeDateDisplay(rawDate) {
+  // Some pages include full timestamps in date inputs; keep only HH:MM when present.
+  return rawDate.replace(/(\d{1,2}:\d{2})(?::\d{2}(?:[.,]\d{1,3})?)?/g, '$1')
+}
+
+function splitDateAndTime(rawDate) {
+  const trimmed = rawDate.trim()
+  const match = trimmed.match(/^(.*?)(?:\s+(\d{1,2}:\d{2})(?::\d{2}(?:[.,]\d{1,3})?)?)?$/)
+  if (!match) {
+    return {
+      datePart: trimmed,
+      timePart: '',
+    }
+  }
+
+  return {
+    datePart: (match[1] || '').trim(),
+    timePart: (match[2] || '').trim(),
+  }
+}
+
+function parseTimeToSeconds(rawTime) {
+  const match = rawTime.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/)
+  if (!match) {
+    return null
+  }
+
+  const hours = Number.parseInt(match[1], 10)
+  const minutes = Number.parseInt(match[2], 10)
+  const seconds = Number.parseInt(match[3] || '0', 10)
+
+  if (
+    !Number.isFinite(hours) ||
+    !Number.isFinite(minutes) ||
+    !Number.isFinite(seconds) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59 ||
+    seconds < 0 ||
+    seconds > 59
+  ) {
+    return null
+  }
+
+  return (hours * 3600) + (minutes * 60) + seconds
+}
+
+function sanitizeSubtitleDisplay(text) {
+  return text.replace(/(\d{1,2}:\d{2})(?::\d{2}(?:[.,]\d{1,3})?)?/g, '$1')
+}
+
+function buildDateRangeSubtitle() {
+  const dateValues = getInputValues('input.datePicker')
+  const timeValues = getInputValues('input[type="time"]')
+
+  const startDateRaw = dateValues[0] || ''
+  const endDateRaw = dateValues[1] || ''
+  const startDateSplit = splitDateAndTime(startDateRaw)
+  const endDateSplit = splitDateAndTime(endDateRaw)
+
+  const startDate = normalizeDateDisplay(startDateSplit.datePart)
+  const endDate = normalizeDateDisplay(endDateSplit.datePart)
+  const startTimeRaw = timeValues[0] || startDateSplit.timePart || ''
+  const endTimeRaw = timeValues[1] || endDateSplit.timePart || ''
+  const startTime = normalizeTimeDisplay(startTimeRaw)
+  const endTime = normalizeTimeDisplay(endTimeRaw)
+
+  const start = [startDate, startTime].filter(Boolean).join(' ')
+  const end = [endDate, endTime].filter(Boolean).join(' ')
+
+  const startSeconds = parseTimeToSeconds(startTimeRaw)
+  const endSeconds = parseTimeToSeconds(endTimeRaw)
+  let durationMinutes = null
+
+  if (startSeconds !== null && endSeconds !== null) {
+    let diffSeconds = endSeconds - startSeconds
+    if (diffSeconds < 0) {
+      diffSeconds += 24 * 3600
+    }
+    durationMinutes = Math.round(diffSeconds / 60)
+  }
+
+  if (start && end) {
+    return {
+      subtitle: sanitizeSubtitleDisplay(`${start} - ${end}`),
+      durationMinutes,
+    }
+  }
+
+  if (start || end) {
+    return {
+      subtitle: sanitizeSubtitleDisplay(start || end),
+      durationMinutes,
+    }
+  }
+
+  return {
+    subtitle: 'Current period',
+    durationMinutes,
+  }
+}
+
 function renderBarsHtml(data) {
   const maxAbsValue = Math.max(...data.map((item) => Math.abs(item.value)), 1)
   return data
@@ -254,19 +394,24 @@ function renderBarsHtml(data) {
 function mountOverlay(dataset) {
   removeOverlay()
 
+  const { subtitle, durationMinutes } = buildDateRangeSubtitle()
+
   const overlay = document.createElement('div')
   overlay.id = OVERLAY_ID
   overlay.style.cssText = OVERLAY_STYLE
+  if (durationMinutes !== null) {
+    overlay.dataset.periodDurationMinutes = String(durationMinutes)
+  }
 
   const panel = document.createElement('section')
   panel.style.cssText = PANEL_STYLE
   panel.innerHTML = `
     <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:14px;">
       <div>
-        <h2 style="margin:0 0 4px;font-size:20px;">MyStart Activity Overlay</h2>
-        <p style="margin:0;color:#334155;">Data source: detected div-based table on statistiques page.</p>
+        <h2 style="margin:0 0 4px;font-size:20px;">Start Plus</h2>
+        <p style="margin:0;color:#334155;">${subtitle}</p>
       </div>
-      <button id="start-plus-close" type="button" style="border:1px solid #94a3b8;background:#ffffff;border-radius:8px;padding:6px 10px;cursor:pointer;">Close</button>
+      <button id="start-plus-close" type="button" aria-label="Close overlay" style="border:1px solid #94a3b8;background:#ffffff;border-radius:8px;width:32px;height:32px;font-size:20px;line-height:1;cursor:pointer;">&times;</button>
     </header>
     <div style="display:grid;gap:8px;">${renderBarsHtml(dataset)}</div>
   `
@@ -323,42 +468,6 @@ async function maybeRenderOverlay({ forceOpen = false } = {}) {
   return { status: 'opened', itemCount: dataset.length }
 }
 
-let refreshTimer = null
-
-function scheduleRefresh() {
-  if (refreshTimer !== null) {
-    window.clearTimeout(refreshTimer)
-  }
-
-  refreshTimer = window.setTimeout(() => {
-    maybeRenderOverlay()
-  }, 220)
-}
-
-window.addEventListener('hashchange', () => {
-  dismissedByUser = false
-  scheduleRefresh()
-})
-document.addEventListener('visibilitychange', scheduleRefresh)
-
-const observer = new MutationObserver((mutations) => {
-  const containsAppMutation = mutations.some((mutation) => {
-    const targetIsOverlay = isOverlayNode(mutation.target)
-    const addedAreOverlay = Array.from(mutation.addedNodes).every((node) => isOverlayNode(node))
-    const removedAreOverlay = Array.from(mutation.removedNodes).every((node) => isOverlayNode(node))
-    return !(targetIsOverlay && addedAreOverlay && removedAreOverlay)
-  })
-
-  if (containsAppMutation) {
-    scheduleRefresh()
-  }
-})
-
-observer.observe(document.documentElement, {
-  childList: true,
-  subtree: true,
-})
-
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type !== 'START_PLUS_OPEN_OVERLAY') {
     return undefined
@@ -374,5 +483,3 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   return true
 })
-
-maybeRenderOverlay()

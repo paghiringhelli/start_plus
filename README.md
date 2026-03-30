@@ -24,6 +24,23 @@ The overlay is rendered only when:
 - `npm run build` creates a production build in `dist/`.
 - `npm run preview` previews Vite output as a regular web app (optional).
 
+## Restricted Windows setup
+
+If your company policy blocks `npm` in PATH, use the included PowerShell helper:
+
+1. Install Node in `C:\\DATA\\nodejs` (already done on this machine).
+2. From the project folder, run:
+
+```powershell
+.\build.ps1
+```
+
+Optional (if Node is in another folder):
+
+```powershell
+.\build.ps1 -NodeRoot 'C:\\MyTools\\nodejs'
+```
+
 ## Load in Chrome
 
 1. Run `npm run build`.

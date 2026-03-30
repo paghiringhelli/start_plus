@@ -2,10 +2,9 @@
   "manifest_version": 3,
   "name": "Start Plus",
   "description": "A Vite-powered Chrome extension starter.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "action": {
-    "default_title": "Start Plus",
-    "default_popup": "popup.html"
+    "default_title": "Start Plus"
   },
   "options_page": "options.html",
   "background": {
