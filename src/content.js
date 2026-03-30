@@ -7,7 +7,6 @@ const REQUIRED_QUERY = {
 }
 
 const PLANNING_STATUS = [
-  { code: 0,  libelle: 'VIERGE',          couleur: '#afafaf', bulle_d_aide: 'Vierge',                    priorite_etat: 101 },
   { code: 1,  libelle: 'GR_SERV',         couleur: '#c8ff00', bulle_d_aide: 'Groupe de service',         priorite_etat: 10  },
   { code: 2,  libelle: 'RENF_1',          couleur: '#aae1ff', bulle_d_aide: 'Renfort 1',                 priorite_etat: 20  },
   { code: 3,  libelle: 'RENF_2',          couleur: '#33a8ff', bulle_d_aide: 'Renfort 2',                 priorite_etat: 25  },
@@ -173,7 +172,7 @@ function extractMyStartStatDataset() {
         continue
       }
 
-      const segments = []
+      const segmentsByLabel = new Map()
       let total = 0
 
       dataCells.forEach((cell, cellIndex) => {
@@ -182,21 +181,33 @@ function extractMyStartStatDataset() {
           return
         }
 
-        const headerText = headerCells[cellIndex] || ''
+        const headerText = (headerCells[cellIndex] || '').trim()
+        const normalizedHeader = headerText.toUpperCase() === 'VIERGE' ? 'ABSENT' : headerText
         const status = PLANNING_STATUS.find(
-          (s) => s.libelle.toLowerCase() === headerText.toLowerCase(),
+          (s) => s.libelle.toLowerCase() === normalizedHeader.toLowerCase(),
         )
 
-        segments.push({
-          libelle: status?.libelle || headerText || `col_${cellIndex}`,
-          couleur: status?.couleur || '#cbd5e1',
-          bulle_d_aide: status?.bulle_d_aide || headerText || `Column ${cellIndex + 1}`,
-          priorite_etat: status?.priorite_etat ?? 999,
-          value,
-          display: formatHoursToHm(value),
-        })
+        const libelle = status?.libelle || normalizedHeader || `col_${cellIndex}`
+        const existing = segmentsByLabel.get(libelle)
+
+        if (existing) {
+          existing.value += value
+          existing.display = formatHoursToHm(existing.value)
+        } else {
+          segmentsByLabel.set(libelle, {
+            libelle,
+            couleur: status?.couleur || '#cbd5e1',
+            bulle_d_aide: status?.bulle_d_aide || normalizedHeader || `Column ${cellIndex + 1}`,
+            priorite_etat: status?.priorite_etat ?? 999,
+            value,
+            display: formatHoursToHm(value),
+          })
+        }
+
         total += value
       })
+
+      const segments = Array.from(segmentsByLabel.values())
 
       if (segments.length === 0) {
         continue
@@ -486,7 +497,7 @@ function showGraphView(panel, dataset, selectedItem) {
   })
 }
 
-function renderStackedBarHtml(item) {
+function renderStackedBarHtml(item, thresholdPct = 50) {
   if (!item.segments || item.segments.length === 0) {
     return `
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
@@ -519,10 +530,15 @@ function renderStackedBarHtml(item) {
     )
     .join('')
 
+  const clampedPct = Math.min(Math.max(thresholdPct, 0), 100)
+
   return `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-      <div style="display:flex;flex:1;height:24px;border-radius:999px;overflow:hidden;background:#e2e8f0;">
-        ${barSegments}
+      <div style="position:relative;flex:1;height:24px;">
+        <div style="display:flex;width:100%;height:100%;border-radius:999px;overflow:hidden;background:#e2e8f0;">
+          ${barSegments}
+        </div>
+        <div title="Seuil: ${clampedPct}%" style="position:absolute;top:-8px;bottom:-8px;left:${clampedPct}%;width:2px;background:#dc2626;transform:translateX(-50%);border-radius:2px;pointer-events:none;"></div>
       </div>
       <strong style="white-space:nowrap;">${escapeHtml(item.display)}</strong>
     </div>
