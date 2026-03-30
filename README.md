@@ -24,6 +24,23 @@ The overlay is rendered only when:
 - `npm run build` creates a production build in `dist/`.
 - `npm run preview` previews Vite output as a regular web app (optional).
 
+## Threshold configuration
+
+The red threshold line is computed from the selected period duration with:
+
+- `thresholdHours = yearlyTargetHours * periodDurationHours / yearHours`
+- `yearHours = 8760` (normal year) or `8784` (leap year)
+
+Set the yearly target in `.env`:
+
+```env
+YEARLY_TARGET_HOURS=1716
+```
+
+Also supported: `VITE_YEARLY_TARGET_HOURS`.
+
+Use `.env.example` as a template.
+
 ## Restricted Windows setup
 
 If your company policy blocks `npm` in PATH, use the included PowerShell helper:

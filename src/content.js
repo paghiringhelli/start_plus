@@ -5,6 +5,9 @@ const REQUIRED_QUERY = {
   numeroCentre: '529',
   itemId: 'activitePersonnel',
 }
+const YEARLY_TARGET_HOURS = Number(
+  import.meta.env.YEARLY_TARGET_HOURS ?? import.meta.env.VITE_YEARLY_TARGET_HOURS,
+) || 1716
 
 const PLANNING_STATUS = [
   { code: 1,  libelle: 'GR_SERV',         couleur: '#c8ff00', bulle_d_aide: 'Groupe de service',         priorite_etat: 10  },
@@ -324,12 +327,39 @@ function getInputValues(selector) {
 }
 
 function normalizeTimeDisplay(rawTime) {
-  const match = rawTime.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/)
+  const match = String(rawTime || '').trim().match(/^(\d{1,2}):(\d{2})(?::\d{2}(?:[.,]\d{1,3})?)?$/)
   if (!match) {
     return rawTime
   }
 
   return `${match[1].padStart(2, '0')}:${match[2]}`
+}
+
+function parseTimeParts(rawTime) {
+  const match = String(rawTime || '').trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2})(?:[.,]\d{1,3})?)?$/)
+  if (!match) {
+    return null
+  }
+
+  const hours = Number.parseInt(match[1], 10)
+  const minutes = Number.parseInt(match[2], 10)
+  const seconds = Number.parseInt(match[3] || '0', 10)
+
+  if (
+    !Number.isFinite(hours) ||
+    !Number.isFinite(minutes) ||
+    !Number.isFinite(seconds) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59 ||
+    seconds < 0 ||
+    seconds > 59
+  ) {
+    return null
+  }
+
+  return { hours, minutes, seconds }
 }
 
 function normalizeDateDisplay(rawDate) {
@@ -354,34 +384,71 @@ function splitDateAndTime(rawDate) {
 }
 
 function parseTimeToSeconds(rawTime) {
-  const match = rawTime.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/)
-  if (!match) {
+  const timeParts = parseTimeParts(rawTime)
+  if (!timeParts) {
     return null
   }
 
-  const hours = Number.parseInt(match[1], 10)
-  const minutes = Number.parseInt(match[2], 10)
-  const seconds = Number.parseInt(match[3] || '0', 10)
-
-  if (
-    !Number.isFinite(hours) ||
-    !Number.isFinite(minutes) ||
-    !Number.isFinite(seconds) ||
-    hours < 0 ||
-    hours > 23 ||
-    minutes < 0 ||
-    minutes > 59 ||
-    seconds < 0 ||
-    seconds > 59
-  ) {
-    return null
-  }
-
-  return (hours * 3600) + (minutes * 60) + seconds
+  return (timeParts.hours * 3600) + (timeParts.minutes * 60) + timeParts.seconds
 }
 
 function sanitizeSubtitleDisplay(text) {
   return text.replace(/(\d{1,2}:\d{2})(?::\d{2}(?:[.,]\d{1,3})?)?/g, '$1')
+}
+
+function parseDateDisplayParts(dateDisplay) {
+  const match = String(dateDisplay || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (!match) {
+    return null
+  }
+
+  const day = Number.parseInt(match[1], 10)
+  const month = Number.parseInt(match[2], 10)
+  const year = Number.parseInt(match[3], 10)
+  if (!Number.isFinite(day) || !Number.isFinite(month) || !Number.isFinite(year)) {
+    return null
+  }
+
+  return { day, month, year }
+}
+
+function parseDateTimeToMs(dateDisplay, timeRaw) {
+  const dateParts = parseDateDisplayParts(dateDisplay)
+  if (!dateParts) {
+    return null
+  }
+
+  const timeParts = parseTimeParts(timeRaw || '00:00')
+  if (!timeParts) {
+    return null
+  }
+
+  return new Date(
+    dateParts.year,
+    dateParts.month - 1,
+    dateParts.day,
+    timeParts.hours,
+    timeParts.minutes,
+    timeParts.seconds,
+    0,
+  ).getTime()
+}
+
+function isLeapYear(year) {
+  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
+}
+
+function getHoursInYear(year) {
+  return isLeapYear(year) ? 8784 : 8760
+}
+
+function computeThresholdHours(durationMinutes, periodYear) {
+  if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
+    return 0
+  }
+
+  const durationHours = durationMinutes / 60
+  return (YEARLY_TARGET_HOURS * durationHours) / getHoursInYear(periodYear)
 }
 
 function buildDateRangeSubtitle() {
@@ -405,9 +472,15 @@ function buildDateRangeSubtitle() {
 
   const startSeconds = parseTimeToSeconds(startTimeRaw)
   const endSeconds = parseTimeToSeconds(endTimeRaw)
+  const startMs = parseDateTimeToMs(startDate, startTimeRaw)
+  const endMs = parseDateTimeToMs(endDate, endTimeRaw)
+  const startYear = parseDateDisplayParts(startDate)?.year || null
+  const endYear = parseDateDisplayParts(endDate)?.year || null
   let durationMinutes = null
 
-  if (startSeconds !== null && endSeconds !== null) {
+  if (startMs !== null && endMs !== null && endMs >= startMs) {
+    durationMinutes = Math.round((endMs - startMs) / 60000)
+  } else if (startSeconds !== null && endSeconds !== null) {
     let diffSeconds = endSeconds - startSeconds
     if (diffSeconds < 0) {
       diffSeconds += 24 * 3600
@@ -416,22 +489,85 @@ function buildDateRangeSubtitle() {
   }
 
   if (start && end) {
+    console.log('[Start Plus][Threshold Debug][Date Range]', {
+      dateValues,
+      timeValues,
+      startDateRaw,
+      endDateRaw,
+      startDate,
+      endDate,
+      startTimeRaw,
+      endTimeRaw,
+      startTime,
+      endTime,
+      startSeconds,
+      endSeconds,
+      startMs,
+      endMs,
+      durationMinutes,
+      startYear,
+      endYear,
+    })
+
     return {
       subtitle: sanitizeSubtitleDisplay(`${start} - ${end}`),
       durationMinutes,
+      periodYear: startYear || endYear || new Date().getFullYear(),
     }
   }
 
   if (start || end) {
+    console.log('[Start Plus][Threshold Debug][Partial Range]', {
+      dateValues,
+      timeValues,
+      startDateRaw,
+      endDateRaw,
+      startDate,
+      endDate,
+      startTimeRaw,
+      endTimeRaw,
+      startTime,
+      endTime,
+      startSeconds,
+      endSeconds,
+      startMs,
+      endMs,
+      durationMinutes,
+      startYear,
+      endYear,
+    })
+
     return {
       subtitle: sanitizeSubtitleDisplay(start || end),
       durationMinutes,
+      periodYear: startYear || endYear || new Date().getFullYear(),
     }
   }
+
+  console.log('[Start Plus][Threshold Debug][No Range]', {
+    dateValues,
+    timeValues,
+    startDateRaw,
+    endDateRaw,
+    startDate,
+    endDate,
+    startTimeRaw,
+    endTimeRaw,
+    startTime,
+    endTime,
+    startSeconds,
+    endSeconds,
+    startMs,
+    endMs,
+    durationMinutes,
+    startYear,
+    endYear,
+  })
 
   return {
     subtitle: 'Current period',
     durationMinutes,
+    periodYear: new Date().getFullYear(),
   }
 }
 
@@ -443,7 +579,7 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;')
 }
 
-function showSearchView(panel, dataset) {
+function showSearchView(panel, dataset, thresholdHours) {
   const body = panel.querySelector('#start-plus-body')
 
   const listItems = dataset
@@ -474,14 +610,14 @@ function showSearchView(panel, dataset) {
 
   for (const btn of list.querySelectorAll('button[data-index]')) {
     btn.addEventListener('click', () => {
-      showGraphView(panel, dataset, dataset[Number(btn.dataset.index)])
+      showGraphView(panel, dataset, dataset[Number(btn.dataset.index)], thresholdHours)
     })
   }
 
   searchInput.focus()
 }
 
-function showGraphView(panel, dataset, selectedItem) {
+function showGraphView(panel, dataset, selectedItem, thresholdHours) {
   const body = panel.querySelector('#start-plus-body')
 
   body.innerHTML = `
@@ -489,15 +625,15 @@ function showGraphView(panel, dataset, selectedItem) {
       <button id="start-plus-back" type="button" aria-label="Back" style="border:1px solid #94a3b8;background:#ffffff;border-radius:8px;width:32px;height:32px;font-size:20px;line-height:1;cursor:pointer;">&#8249;</button>
       <span style="font-weight:600;font-size:15px;">${escapeHtml(selectedItem.label)}</span>
     </div>
-    <div>${renderStackedBarHtml(selectedItem)}</div>
+    <div>${renderStackedBarHtml(selectedItem, thresholdHours)}</div>
   `
 
   body.querySelector('#start-plus-back').addEventListener('click', () => {
-    showSearchView(panel, dataset)
+    showSearchView(panel, dataset, thresholdHours)
   })
 }
 
-function renderStackedBarHtml(item, thresholdPct = 50) {
+function renderStackedBarHtml(item, thresholdHours = 0) {
   if (!item.segments || item.segments.length === 0) {
     return `
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
@@ -530,7 +666,16 @@ function renderStackedBarHtml(item, thresholdPct = 50) {
     )
     .join('')
 
+  const safeThresholdHours = Math.max(Number(thresholdHours) || 0, 0)
+  const thresholdPct = (safeThresholdHours / total) * 100
   const clampedPct = Math.min(Math.max(thresholdPct, 0), 100)
+  const thresholdLegendItem = `
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="width:12px;height:12px;flex-shrink:0;background:#dc2626;border-radius:2px;"></span>
+      <span style="flex:1;">Heures demandées rapportées à la période</span>
+      <strong>${escapeHtml(formatHoursToHm(safeThresholdHours))}</strong>
+    </div>
+  `
 
   return `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
@@ -538,12 +683,13 @@ function renderStackedBarHtml(item, thresholdPct = 50) {
         <div style="display:flex;width:100%;height:100%;border-radius:999px;overflow:hidden;background:#e2e8f0;">
           ${barSegments}
         </div>
-        <div title="Seuil: ${clampedPct}%" style="position:absolute;top:-8px;bottom:-8px;left:${clampedPct}%;width:2px;background:#dc2626;transform:translateX(-50%);border-radius:2px;pointer-events:none;"></div>
+        <div title="Seuil: ${escapeHtml(formatHoursToHm(safeThresholdHours))}" style="position:absolute;top:-8px;bottom:-8px;left:${clampedPct}%;width:2px;background:#dc2626;transform:translateX(-50%);border-radius:2px;pointer-events:none;"></div>
       </div>
       <strong style="white-space:nowrap;">${escapeHtml(item.display)}</strong>
     </div>
     <div style="display:grid;gap:6px;font-size:13px;">
       ${legendItems}
+      ${thresholdLegendItem}
     </div>
   `
 }
@@ -551,7 +697,20 @@ function renderStackedBarHtml(item, thresholdPct = 50) {
 function mountOverlay(dataset) {
   removeOverlay()
 
-  const { subtitle, durationMinutes } = buildDateRangeSubtitle()
+  const { subtitle, durationMinutes, periodYear } = buildDateRangeSubtitle()
+  const hoursInYear = getHoursInYear(periodYear)
+  const durationHours = Number.isFinite(durationMinutes) ? durationMinutes / 60 : null
+  const thresholdHours = computeThresholdHours(durationMinutes, periodYear)
+
+  console.log('[Start Plus][Threshold Debug][Equation]', {
+    yearlyTargetHours: YEARLY_TARGET_HOURS,
+    durationMinutes,
+    durationHours,
+    periodYear,
+    hoursInYear,
+    formula: '(yearlyTargetHours * durationHours) / hoursInYear',
+    thresholdHours,
+  })
 
   const overlay = document.createElement('div')
   overlay.id = OVERLAY_ID
@@ -559,6 +718,7 @@ function mountOverlay(dataset) {
   if (durationMinutes !== null) {
     overlay.dataset.periodDurationMinutes = String(durationMinutes)
   }
+  overlay.dataset.thresholdHours = String(thresholdHours)
 
   const panel = document.createElement('section')
   panel.style.cssText = PANEL_STYLE
@@ -588,7 +748,7 @@ function mountOverlay(dataset) {
   overlay.appendChild(panel)
   document.body.appendChild(overlay)
 
-  showSearchView(panel, dataset)
+  showSearchView(panel, dataset, thresholdHours)
 }
 
 async function maybeRenderOverlay({ forceOpen = false } = {}) {

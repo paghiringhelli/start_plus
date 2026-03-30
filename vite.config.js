@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import { resolve } from 'node:path'
 
 export default defineConfig(({ mode }) => ({
+  envPrefix: ['VITE_', 'YEARLY_'],
   build: {
     outDir: 'dist',
     emptyOutDir: true,
