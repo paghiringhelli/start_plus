@@ -49,7 +49,7 @@ If a user is not in that list, they do not have access.
 Configuration:
 
 - `dist/authz-policy.json`: signed policy file loaded at runtime.
-- Public key is pinned in `src/content.js` and bundled into `dist/assets/content.js`.
+- Public key is pinned in `src/content/constants.js` and bundled into `dist/assets/content.js`.
 
 Update without rebuild:
 
@@ -58,7 +58,7 @@ Update without rebuild:
 
 Rotate public key (requires rebuild):
 
-- Update the pinned `AUTHZ_PUBLIC_KEY` value in `src/content.js`.
+- Update the pinned `AUTHZ_PUBLIC_KEY` value in `src/content/constants.js`.
 - Rebuild and redeploy the extension.
 
 Local auto-generation on build:
@@ -150,9 +150,28 @@ Optional (if Node is in another folder):
 
 - `public/manifest.json`: Chrome extension manifest.
 - `src/background.js`: service worker.
-- `src/content.js`: content script that detects table-like data and renders the overlay graph.
+- `src/content.js`: thin content-script bootstrap (startup and listeners).
+- `src/content/*`: modular content-script implementation.
 - `popup.html` + `src/popup/*`: extension popup UI.
 - `options.html` + `src/options/*`: options page UI.
+
+## Content module map
+
+The content script is split into focused modules under `src/content/`:
+
+- `constants.js`: selectors, IDs, route constants, authz key, and styling constants.
+- `state.js`: shared mutable UI state (overlay dismissed flag).
+- `planning-status.js`: CSV parsing and planning status lookup map.
+- `routing.js`: hash-route parsing, target-page checks, and center-hash helpers.
+- `user-identity.js`: current-user ID/display-name extraction and normalization.
+- `auth.js`: signed policy verification and authorization gates.
+- `date-time.js`: date/time parsing, formatting, and threshold computations.
+- `name-matching.js`: user-name normalization and dataset row matching.
+- `dom-utils.js`: DOM utility helpers (visibility, input extraction, HTML escaping).
+- `data-extraction.js`: table parsing and dataset shaping.
+- `ui-center-menu.js`: floating center picker rendering and refresh logic.
+- `row-title-style.js`: clickable row-title style injection and refresh logic.
+- `overlay-ui.js`: overlay rendering and click-to-open behavior.
 
 ## Dev loop
 
