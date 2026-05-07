@@ -1,5 +1,5 @@
 import { OVERLAY_ID, OVERLAY_STYLE, PANEL_STYLE, YEARLY_TARGET_HOURS, ROW_TITLE_SELECTOR } from './constants.js'
-import { canCurrentUserViewAllStatsSecondaryGate } from './auth.js'
+import { canCurrentUserViewAllStats } from './auth.js'
 import { findBestDataset } from './data-extraction.js'
 import { findBestMatchingDatasetItem, findDatasetItemByLabel } from './name-matching.js'
 import { getCurrentUserDisplayName } from './user-identity.js'
@@ -36,15 +36,6 @@ import { ensureRowTitleInteractionStyle } from './row-title-style.js'
  * @property {string} display
  * @property {DatasetSegment[]=} segments
  */
-
-function isOverlayNode(node) {
-  if (node instanceof Element) {
-    return node.id === OVERLAY_ID || node.closest(`#${OVERLAY_ID}`) !== null
-  }
-
-  const parent = node?.parentElement
-  return parent ? parent.id === OVERLAY_ID || parent.closest(`#${OVERLAY_ID}`) !== null : false
-}
 
 export function removeOverlay() {
   const existing = document.getElementById(OVERLAY_ID)
@@ -113,6 +104,12 @@ function buildDateRangeSubtitle() {
   }
 }
 
+function safeCssColor(color) {
+  return /^(#[0-9a-fA-F]{3,8}|rgba?\(\s*\d[^)]*\))$/.test(String(color || '').trim())
+    ? color
+    : '#cbd5e1'
+}
+
 /**
  * @param {HTMLElement} panel
  * @param {DatasetRow} selectedItem
@@ -151,7 +148,7 @@ function renderStackedBarHtml(item, thresholdHours = 0) {
   const barSegments = item.segments
     .map((s) => {
       const pct = (Math.abs(s.value) / total) * 100
-      return `<div title="${escapeHtml(s.bulle_d_aide)}: ${escapeHtml(s.display)}" style="height:100%;width:${pct}%;background:${s.couleur};flex-shrink:0;"></div>`
+      return `<div title="${escapeHtml(s.bulle_d_aide)}: ${escapeHtml(s.display)}" style="height:100%;width:${pct}%;background:${safeCssColor(s.couleur)};flex-shrink:0;"></div>`
     })
     .join('')
 
@@ -159,7 +156,7 @@ function renderStackedBarHtml(item, thresholdHours = 0) {
     .map(
       (s) => `
         <div style="display:flex;align-items:center;gap:8px;">
-          <span style="width:12px;height:12px;border-radius:3px;flex-shrink:0;background:${s.couleur};border:1px solid rgba(0,0,0,0.12);"></span>
+          <span style="width:12px;height:12px;border-radius:3px;flex-shrink:0;background:${safeCssColor(s.couleur)};border:1px solid rgba(0,0,0,0.12);"></span>
           <span style="flex:1;">${escapeHtml(s.bulle_d_aide)}</span>
           <strong>${escapeHtml(s.display)}</strong>
         </div>
@@ -311,7 +308,7 @@ export async function maybeRenderOverlay({ forceOpen = false, preferredLabel = '
     return { status: 'no-data' }
   }
 
-  if (forceOpen && preferredLabel && !(await canCurrentUserViewAllStatsSecondaryGate())) {
+  if (forceOpen && preferredLabel && !(await canCurrentUserViewAllStats())) {
     return { status: 'not-authorized' }
   }
 
@@ -321,11 +318,12 @@ export async function maybeRenderOverlay({ forceOpen = false, preferredLabel = '
 }
 
 export async function maybeRenderOverlayFromNameClick(event) {
-  if (!isTargetPage() || isOverlayNode(event.target)) {
+  const target = event.target
+  if (!isTargetPage() || (target instanceof Element && target.closest(`#${OVERLAY_ID}`) !== null)) {
     return
   }
 
-  if (!(await canCurrentUserViewAllStatsSecondaryGate())) {
+  if (!(await canCurrentUserViewAllStats())) {
     return
   }
 

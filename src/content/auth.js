@@ -181,7 +181,7 @@ async function verifyAuthzSignature(payloadText, signatureBytes, rawPublicKey) {
   )
 }
 
-async function getVerifiedAuthzPolicy() {
+async function _fetchAndVerifyAuthzPolicy() {
   try {
     const publicKeyText = String(AUTHZ_PUBLIC_KEY || '').trim()
     if (!publicKeyText) {
@@ -256,6 +256,15 @@ async function getVerifiedAuthzPolicy() {
   }
 }
 
+let _authzPolicyPromise = null
+
+function getVerifiedAuthzPolicy() {
+  if (!_authzPolicyPromise) {
+    _authzPolicyPromise = _fetchAndVerifyAuthzPolicy()
+  }
+  return _authzPolicyPromise
+}
+
 export async function canCurrentUserViewAllStats() {
   const authz = await getVerifiedAuthzPolicy()
 
@@ -267,6 +276,3 @@ export async function canCurrentUserViewAllStats() {
   return Boolean(userId) && authz.policy.allowedUserIds.has(userId)
 }
 
-export async function canCurrentUserViewAllStatsSecondaryGate() {
-  return canCurrentUserViewAllStats()
-}

@@ -112,7 +112,7 @@ function main() {
   const outPath = getArgValue(args, '--out', 'dist/authz-policy.json')
   const expiresAt = getArgValue(args, '--expires-at', getDefaultExpiryIso())
   const cliUserIds = getArgValues(args, '--user-id').map(normalizeUserId).filter(Boolean)
-  const fileUserIds = userFilePath ? readUserIdsFromFile(userFilePath) : []
+  const fileUserIds = userFilePath && existsSync(resolve(userFilePath)) ? readUserIdsFromFile(userFilePath) : []
   const userIds = [...new Set([...cliUserIds, ...fileUserIds])]
 
   if (userIds.length === 0) {

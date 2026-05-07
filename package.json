@@ -8,10 +8,13 @@
     "prebuild": "node scripts/generate-authz-policy.mjs --user-file authorized-nips.local --out public/authz-policy.json",
     "build": "vite build",
     "preview": "vite preview",
-    "authz:sign": "node scripts/generate-authz-policy.mjs"
+    "authz:sign": "node scripts/generate-authz-policy.mjs",
+    "lint": "eslint src scripts vite.config.js"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
     "@resvg/resvg-js": "^2.6.2",
+    "eslint": "^9.39.4",
     "javascript-obfuscator": "^4.1.1",
     "pngjs": "^7.0.0",
     "sshpk": "^1.18.0",

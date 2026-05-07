@@ -69,25 +69,8 @@ export function findBestMatchingDatasetItem(dataset, userDisplayName) {
   )
 
   if (!isStrongMatch) {
-    console.log('[MyStart+][User Match] No reliable match', {
-      userDisplayName,
-      bestLabel: bestMatch.item.label,
-      score: bestMatch.score,
-      commonCount: bestMatch.commonCount,
-      userCoverage: bestMatch.userCoverage,
-      labelCoverage: bestMatch.labelCoverage,
-    })
     return null
   }
-
-  console.log('[MyStart+][User Match] Auto-opening user', {
-    userDisplayName,
-    matchedLabel: bestMatch.item.label,
-    score: bestMatch.score,
-    commonCount: bestMatch.commonCount,
-    userCoverage: bestMatch.userCoverage,
-    labelCoverage: bestMatch.labelCoverage,
-  })
 
   return bestMatch.item
 }

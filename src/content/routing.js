@@ -36,13 +36,25 @@ export function isTargetPage() {
   return ALLOWED_CENTER_IDS.has(centerId) && itemId === REQUIRED_ITEM_ID
 }
 
+let _enabledCache
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'sync' && 'start_plus_enabled' in changes) {
+    _enabledCache = undefined
+  }
+})
+
 export async function isEnabled() {
+  if (_enabledCache !== undefined) return _enabledCache
   const data = await chrome.storage.sync.get({ start_plus_enabled: true })
-  return data.start_plus_enabled
+  _enabledCache = data.start_plus_enabled
+  return _enabledCache
 }
 
 export function isLikelyAuthenticated() {
-  return document.querySelector('app-root, [id*="app"], [class*="layout"]') !== null
+  const root = document.querySelector('app-root')
+  if (root && root.children.length > 0) return true
+  return document.querySelector('[class*="layout"]') !== null
 }
 
 export function buildCenterHash(centerId) {
