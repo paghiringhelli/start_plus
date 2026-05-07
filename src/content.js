@@ -17,6 +17,8 @@ const CENTER_LINKS = [
 const YEARLY_TARGET_HOURS = Number(
   import.meta.env.YEARLY_TARGET_HOURS ?? import.meta.env.VITE_YEARLY_TARGET_HOURS,
 ) || 1716
+const AUTHZ_POLICY_FILE = 'authz-policy.json'
+const AUTHZ_PUBLIC_KEY = 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCjT9dgz9hO/rlc9C+RaX8SBpt1q0gNu2NeZ3rFFSKXQJOgadzZ3E40gLkDOehePpKv+j3M4rJvydJT6Fb2CqEjSYJ78jyfZdUSBURwzmSTuUh6JwwH4bWZy4213dA9jbOjuQ4IIfryC26nQMPyYYZ0QeXHHSNjKSnefa4Ke0bLZlJZAn2NHRt0Ma/6u7dDJKx/nsih8Lc1oEzq8tq9rxgFfwALdKhS8TxLV385ZnM1uwz0tIvF/2ZfuzmNU+GhlYatorafWFVJMw6irGcaa6avKCV3IwKbsrSbfSSaWRGp5BqqXt0P2DG7Agjer+5A5wMHMN6D9GAe7+DYiIOk+tY+lYfq/uvmSpbDZ3ee5pztmmoIgCsTqEXZUQNun5J8Eh/HOkTAxqO+w/4JRZkEHWw7tAytawS9rrkvsi4HwK/pMw+IO3H7uVBoOJguJACrW+espJjyO46qFvbfV4K5q0EXugYYqoIjcCBTCfVwj7TRf2kRvEBRXj0zEyKtTF20g6s/zWwlSRs9mp5RJ/2u6w+x2vJvAknURlRrvbCTml/6PRr77PnmavmRMq+GjJugj3uus29r3ffDARtJ8Uwbc38k9SYzEhS6UHmFmd3HVwWTfpRtmkahTsemNrWc15gYGcMZ/k+EXzwyDji6cZMQjqwJVgccqLz4JNIKrvpm77eGtQ=='
 
 const DEFAULT_PLANNING_STATUS = [
   { code: 1,  libelle: 'GR_SERV',         couleur: '#c8ff00', bulle_d_aide: 'Groupe de service',         priorite_etat: 10  },
@@ -161,6 +163,325 @@ async function isEnabled() {
 
 function isLikelyAuthenticated() {
   return document.querySelector('app-root, [id*="app"], [class*="layout"]') !== null
+}
+
+function base64ToUint8Array(base64Value) {
+  const normalized = String(base64Value || '')
+    .trim()
+    .replace(/-/g, '+')
+    .replace(/_/g, '/')
+  if (!normalized) {
+    return new Uint8Array(0)
+  }
+
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
+  const decoded = atob(padded)
+  const bytes = new Uint8Array(decoded.length)
+  for (let index = 0; index < decoded.length; index += 1) {
+    bytes[index] = decoded.charCodeAt(index)
+  }
+
+  return bytes
+}
+
+function decodeUtf8(bytes) {
+  if (!(bytes instanceof Uint8Array) || bytes.length === 0) {
+    return ''
+  }
+
+  return new TextDecoder().decode(bytes)
+}
+
+function toBase64Url(bytes) {
+  let binary = ''
+  for (const value of bytes) {
+    binary += String.fromCharCode(value)
+  }
+  const base64 = btoa(binary)
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+}
+
+function parseSshRsaPublicKey(rawValue) {
+  const parts = String(rawValue || '').trim().split(/\s+/)
+  if (parts.length < 2 || parts[0] !== 'ssh-rsa') {
+    return null
+  }
+
+  const bytes = base64ToUint8Array(parts[1])
+  let offset = 0
+
+  const readUint32 = () => {
+    if (offset + 4 > bytes.length) return null
+    const value =
+      (bytes[offset] << 24) |
+      (bytes[offset + 1] << 16) |
+      (bytes[offset + 2] << 8) |
+      bytes[offset + 3]
+    offset += 4
+    return value >>> 0
+  }
+
+  const readField = () => {
+    const length = readUint32()
+    if (length === null || offset + length > bytes.length) {
+      return null
+    }
+    const value = bytes.slice(offset, offset + length)
+    offset += length
+    return value
+  }
+
+  const type = readField()
+  const exponent = readField()
+  const modulus = readField()
+  if (!type || !exponent || !modulus) {
+    return null
+  }
+
+  const typeText = new TextDecoder().decode(type)
+  if (typeText !== 'ssh-rsa') {
+    return null
+  }
+
+  const trimLeadingZero = (value) => {
+    let index = 0
+    while (index < value.length - 1 && value[index] === 0) {
+      index += 1
+    }
+    return value.slice(index)
+  }
+
+  return {
+    kty: 'RSA',
+    e: toBase64Url(trimLeadingZero(exponent)),
+    n: toBase64Url(trimLeadingZero(modulus)),
+    alg: 'RS256',
+    ext: true,
+  }
+}
+
+function parsePemPublicKeyToSpkiB64(rawValue) {
+  const text = String(rawValue || '').trim()
+  if (!text.startsWith('-----BEGIN PUBLIC KEY-----')) {
+    return ''
+  }
+
+  return text
+    .replace('-----BEGIN PUBLIC KEY-----', '')
+    .replace('-----END PUBLIC KEY-----', '')
+    .replace(/\s+/g, '')
+}
+
+function normalizeUserId(value) {
+  return String(value || '')
+    .replace(/[^0-9A-Za-z_-]/g, '')
+    .trim()
+}
+
+function getCurrentUserId() {
+  const selectors = [
+    '.logout-subtitle.ng-binding.ng-scope',
+    '.logout-subtitle',
+  ]
+
+  for (const selector of selectors) {
+    const nodes = Array.from(document.querySelectorAll(selector))
+    for (const node of nodes) {
+      const value = normalizeUserId(node.textContent || '')
+      if (value) {
+        return value
+      }
+    }
+  }
+
+  return ''
+}
+
+function parseAuthzPolicy(payloadText) {
+  const parsed = JSON.parse(payloadText)
+  if (!parsed || typeof parsed !== 'object' || parsed.version !== 1) {
+    return null
+  }
+
+  const expiresAt = String(parsed.expiresAt || '').trim()
+  const expiresAtMs = Date.parse(expiresAt)
+  if (!Number.isFinite(expiresAtMs)) {
+    return null
+  }
+
+  const allowedUserIds = Array.isArray(parsed.allowedUserIds)
+    ? parsed.allowedUserIds.map(normalizeUserId).filter(Boolean)
+    : []
+
+  return {
+    expiresAt,
+    expiresAtMs,
+    allowedUserIds: new Set(allowedUserIds),
+  }
+}
+
+async function importAuthzPublicKey(rawValue) {
+  const sshJwk = parseSshRsaPublicKey(rawValue)
+  if (sshJwk) {
+    return crypto.subtle.importKey(
+      'jwk',
+      sshJwk,
+      {
+        name: 'RSASSA-PKCS1-v1_5',
+        hash: 'SHA-256',
+      },
+      false,
+      ['verify'],
+    )
+  }
+
+  const pemSpkiB64 = parsePemPublicKeyToSpkiB64(rawValue)
+  const spkiB64 = pemSpkiB64 || String(rawValue || '').trim()
+  const publicKeyBytes = base64ToUint8Array(spkiB64)
+  if (publicKeyBytes.length === 0) {
+    return null
+  }
+
+  return crypto.subtle.importKey(
+    'spki',
+    publicKeyBytes,
+    {
+      name: 'RSASSA-PKCS1-v1_5',
+      hash: 'SHA-256',
+    },
+    false,
+    ['verify'],
+  )
+}
+
+async function verifyAuthzSignature(payloadText, signatureBytes, rawPublicKey) {
+  const key = await importAuthzPublicKey(rawPublicKey)
+  if (!key) {
+    return false
+  }
+
+  return crypto.subtle.verify(
+    {
+      name: 'RSASSA-PKCS1-v1_5',
+    },
+    key,
+    signatureBytes,
+    new TextEncoder().encode(payloadText),
+  )
+}
+
+async function getVerifiedAuthzPolicy() {
+  try {
+    const publicKeyText = String(AUTHZ_PUBLIC_KEY || '').trim()
+    if (!publicKeyText) {
+      return {
+        configured: true,
+        verified: false,
+        policy: null,
+        reason: 'invalid-embedded-public-key',
+      }
+    }
+
+    const response = await fetch(chrome.runtime.getURL(AUTHZ_POLICY_FILE), { cache: 'no-store' })
+    if (!response.ok) {
+      return {
+        configured: true,
+        verified: false,
+        policy: null,
+        reason: 'missing-policy-file',
+      }
+    }
+
+    const signedPolicy = await response.json()
+    const payloadB64 = String(signedPolicy?.payloadB64 || '').trim()
+    const signatureB64 = String(signedPolicy?.signatureB64 || '').trim()
+    if (!payloadB64 || !signatureB64) {
+      return {
+        configured: true,
+        verified: false,
+        policy: null,
+        reason: 'invalid-policy-file',
+      }
+    }
+
+    const payloadBytes = base64ToUint8Array(payloadB64)
+    const payloadText = decodeUtf8(payloadBytes)
+    const signatureBytes = base64ToUint8Array(signatureB64)
+
+    const signatureValid = await verifyAuthzSignature(payloadText, signatureBytes, publicKeyText)
+    if (!signatureValid) {
+      return {
+        configured: true,
+        verified: false,
+        policy: null,
+        reason: 'invalid-signature',
+      }
+    }
+
+    const policy = parseAuthzPolicy(payloadText)
+    if (!policy) {
+      return {
+        configured: true,
+        verified: false,
+        policy: null,
+        reason: 'invalid-payload',
+      }
+    }
+
+    if (Date.now() > policy.expiresAtMs) {
+      return {
+        configured: true,
+        verified: false,
+        policy,
+        reason: 'expired',
+      }
+    }
+
+    return {
+      configured: true,
+      verified: true,
+      policy,
+      reason: 'ok',
+    }
+  } catch {
+    return {
+      configured: true,
+      verified: false,
+      policy: null,
+      reason: 'verification-error',
+    }
+  }
+}
+
+async function canCurrentUserViewAllStats() {
+  const authz = await getVerifiedAuthzPolicy()
+
+  if (!authz.configured) {
+    return false
+  }
+
+  if (!authz.verified || !authz.policy) {
+    return false
+  }
+
+  const userId = normalizeUserId(getCurrentUserId())
+  return Boolean(userId) && authz.policy.allowedUserIds.has(userId)
+}
+
+async function canCurrentUserViewAllStatsSecondaryGate() {
+  const authz = await getVerifiedAuthzPolicy()
+
+  if (!authz || authz.configured !== true || authz.verified !== true || !authz.policy) {
+    return false
+  }
+
+  const rawUserId = String(getCurrentUserId() || '')
+  const userId = rawUserId.replace(/[^0-9A-Za-z_-]/g, '').trim()
+  if (!userId) {
+    return false
+  }
+
+  return authz.policy.allowedUserIds.has(userId)
 }
 
 function parseNumber(rawText) {
@@ -1053,6 +1374,10 @@ async function maybeRenderOverlay({ forceOpen = false, preferredLabel = '' } = {
     return { status: 'no-data' }
   }
 
+  if (forceOpen && preferredLabel && !(await canCurrentUserViewAllStatsSecondaryGate())) {
+    return { status: 'not-authorized' }
+  }
+
   dismissedByUser = false
   mountOverlay(dataset, preferredLabel)
   return { status: 'opened', itemCount: dataset.length }
@@ -1062,6 +1387,18 @@ async function maybeRenderOverlayFromNameClick(event) {
   if (!isTargetPage() || isOverlayNode(event.target)) {
     return
   }
+
+  if (!(await canCurrentUserViewAllStats())) {
+    return
+  }
+
+  if (!(await canCurrentUserViewAllStatsSecondaryGate())) {
+    return
+  }
+
+  // In some SPA load sequences, style injection can happen before auth is available.
+  // Re-ensure pointer/highlight once authorization is confirmed.
+  ensureRowTitleInteractionStyle()
 
   const rowTitle = event.target instanceof Element
     ? event.target.closest(ROW_TITLE_SELECTOR)
@@ -1073,6 +1410,13 @@ async function maybeRenderOverlayFromNameClick(event) {
   }
 
   await maybeRenderOverlay({ forceOpen: true, preferredLabel: label })
+}
+
+function removeRowTitleInteractionStyle() {
+  const existing = document.getElementById(ROW_TITLE_STYLE_ID)
+  if (existing) {
+    existing.remove()
+  }
 }
 
 function ensureRowTitleInteractionStyle() {
@@ -1097,13 +1441,34 @@ function ensureRowTitleInteractionStyle() {
   document.head.appendChild(style)
 }
 
-ensureRowTitleInteractionStyle()
+async function refreshRowTitleInteractionStyle() {
+  if (!isTargetPage()) {
+    removeRowTitleInteractionStyle()
+    return
+  }
+
+  const canViewAllStats = await canCurrentUserViewAllStats()
+  if (!canViewAllStats) {
+    removeRowTitleInteractionStyle()
+    return
+  }
+
+  ensureRowTitleInteractionStyle()
+}
+
+refreshRowTitleInteractionStyle().catch((error) => {
+  console.warn('Unable to refresh row title interaction style.', error)
+})
 
 maybeRenderCenterMenu().catch((error) => {
   console.warn('Unable to render center switch menu.', error)
 })
 
 window.addEventListener('hashchange', () => {
+  refreshRowTitleInteractionStyle().catch((error) => {
+    console.warn('Unable to refresh row title interaction style after route change.', error)
+  })
+
   maybeRenderCenterMenu().catch((error) => {
     console.warn('Unable to refresh center switch menu after route change.', error)
   })

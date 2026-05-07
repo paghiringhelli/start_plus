@@ -1,0 +1,3 @@
+# One authorized NIP per line.
+# This file is local-only (*.local is gitignored).
+# It is used by npm prebuild to regenerate public/authz-policy.json.

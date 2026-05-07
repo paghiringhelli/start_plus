@@ -41,6 +41,86 @@ Also supported: `VITE_YEARLY_TARGET_HOURS`.
 
 Use `.env.example` as a template.
 
+## Signed authorization for "all stats"
+
+Only users present in the signed authorization list can access other people's stats.
+If a user is not in that list, they do not have access.
+
+Configuration:
+
+- `dist/authz-policy.json`: signed policy file loaded at runtime.
+- Public key is pinned in `src/content.js` and bundled into `dist/assets/content.js`.
+
+Update without rebuild:
+
+- Regenerate a new signed `authz-policy.json` with your private key.
+- Replace only `dist/authz-policy.json` on the deployed machine.
+
+Rotate public key (requires rebuild):
+
+- Update the pinned `AUTHZ_PUBLIC_KEY` value in `src/content.js`.
+- Rebuild and redeploy the extension.
+
+Local auto-generation on build:
+
+- Put authorized NIPs in `authorized-nips.local` (one per line).
+- `npm run build` automatically regenerates `public/authz-policy.json` before building.
+- Default private key path used by the signer: `~/.ssh/id_rsa`.
+- Override key path manually when needed:
+
+```powershell
+npm run authz:sign -- --private-key "C:\Users\<you>\\.ssh\\id_rsa" --user-file authorized-nips.local --out public/authz-policy.json
+```
+
+Signature algorithm currently used by the extension:
+
+- RSA PKCS#1 v1.5 with SHA-256.
+
+Authorization rule:
+
+- Signature must verify.
+- Payload must be valid and not expired.
+- Current user must be listed in `allowedUserIds`.
+- Otherwise, access to other people's stats is denied.
+
+Important:
+
+- If embedded public key, policy file, signature, or payload is invalid, access is denied.
+
+Signed file format (`dist/authz-policy.json`):
+
+```json
+{
+	"payloadB64": "<base64-utf8-json-payload>",
+	"signatureB64": "<base64-signature>"
+}
+```
+
+Payload JSON format (`version: 1` inside `payloadB64`):
+
+```json
+{
+	"version": 1,
+	"expiresAt": "2026-12-31T23:59:59Z",
+	"allowedUserIds": ["45484", "12345"]
+}
+```
+
+Notes:
+
+- `allowedUserIds` should contain stable IDs (recommended).
+
+Generate a signed policy file:
+
+```powershell
+npm run authz:sign -- --private-key .secrets/authz-private.pem --user-id 45484 --out dist/authz-policy.json
+```
+
+Works directly with modern OpenSSH private keys (for example `C:\Users\<you>\\.ssh\\id_rsa`) without conversion.
+If your key is encrypted, add `--passphrase "..."`.
+
+To update permissions on a deployed machine, regenerate and replace only `dist/authz-policy.json`.
+
 ## Restricted Windows setup
 
 If your company policy blocks `npm` in PATH, use the included PowerShell helper:
