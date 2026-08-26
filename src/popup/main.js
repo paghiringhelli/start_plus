@@ -47,7 +47,7 @@ function isAuthorizedStatsPage(url) {
 function renderCenterLinks() {
   app.innerHTML = `
     <section class="panel">
-      <h1>MyStart+</h1>
+      <h1>MyStart+Admin</h1>
       <p>Choisissez un centre.</p>
       <div class="link-grid">
         ${CENTER_LINKS.map((center) => `
@@ -103,7 +103,7 @@ function getCenterLabelFromUrl(url) {
 function renderStatsAction(centerLabel) {
   app.innerHTML = `
     <section class="panel">
-      <h1>MyStart+</h1>
+      <h1>MyStart+Admin</h1>
       <p>${centerLabel}</p>
       <button id="open-stats" class="center-link single-action" type="button">Afficher mes stats</button>
     </section>

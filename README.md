@@ -1,4 +1,4 @@
-# MyStart+ Chrome Extension (Vite)
+# MyStart+Admin Chrome Extension (Vite)
 
 Chrome extension for MyStart that reads data from a div-based HTML table on the target statistics page and displays an overlay with graphs.
 

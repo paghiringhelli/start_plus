@@ -996,7 +996,7 @@ function mountOverlay(dataset, preferredLabel = '') {
   panel.innerHTML = `
     <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:14px;">
       <div>
-        <h2 style="margin:0 0 4px;font-size:20px;">MyStart+</h2>
+        <h2 style="margin:0 0 4px;font-size:20px;">MyStart+AdminAdmin</h2>
         <p style="margin:0;color:#334155;">${subtitle}</p>
       </div>
       <button id="start-plus-close" type="button" aria-label="Close overlay" style="border:1px solid #e2e8f0;background:#f8fafc;border-radius:8px;width:32px;height:32px;font-size:20px;line-height:1;cursor:pointer;">&times;</button>
