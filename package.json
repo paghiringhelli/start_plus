@@ -1,11 +1,13 @@
 {
   "name": "start_plus",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite build --watch --mode development",
-    "build": "vite build && node scripts/pack-crx.mjs",
+    "build": "vite build",
+    "build:main": "vite build && node scripts/pack-crx.mjs main",
+    "build:admin": "vite build && node scripts/pack-crx.mjs admin",
     "preview": "vite preview"
   },
   "devDependencies": {
