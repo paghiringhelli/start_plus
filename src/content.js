@@ -1097,7 +1097,7 @@ function ensureRowTitleInteractionStyle() {
   document.head.appendChild(style)
 }
 
-// ensureRowTitleInteractionStyle()
+ensureRowTitleInteractionStyle()
 
 maybeRenderCenterMenu().catch((error) => {
   console.warn('Unable to render center switch menu.', error)
@@ -1119,11 +1119,11 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   })
 })
 
-// document.addEventListener('click', (event) => {
-//   maybeRenderOverlayFromNameClick(event).catch((error) => {
-//     console.warn('Unable to open MyStart+ overlay from table name click.', error)
-//   })
-// })
+document.addEventListener('click', (event) => {
+  maybeRenderOverlayFromNameClick(event).catch((error) => {
+    console.warn('Unable to open MyStart+ overlay from table name click.', error)
+  })
+})
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type !== 'START_PLUS_OPEN_OVERLAY') {
