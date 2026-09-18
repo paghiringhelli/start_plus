@@ -1,5 +1,7 @@
 param(
-  [string]$NodeRoot = 'C:\DATA\nodejs'
+  [string]$NodeRoot = 'C:\DATA\nodejs',
+  [ValidateSet('main', 'admin')]
+  [string]$Target
 )
 
 $ErrorActionPreference = 'Stop'
@@ -20,7 +22,12 @@ $env:Path = "$NodeRoot;$env:Path"
 Push-Location $PSScriptRoot
 try {
   & $nodeExe $npmCli install
-  & $nodeExe $npmCli run build
+  if ($Target) {
+    & $nodeExe $npmCli run "build:$Target"
+  }
+  else {
+    & $nodeExe $npmCli run build
+  }
 }
 finally {
   Pop-Location
